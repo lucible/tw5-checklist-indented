@@ -1,4 +1,4 @@
-# tw5-checklist
+# tw5-checklist-indented
 Simple checklist widget for TiddlyWiki5
 
 For more information about this [TiddlyWiki](http://tiddlywiki.com) plugin, please visit the homepage:

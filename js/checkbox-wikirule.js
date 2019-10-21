@@ -14,10 +14,11 @@ exports.name = "checkbox";
 exports.types = {inline: true};
 
 exports.init = function(parser) {
-	this.parser = parser;
+    this.parser = parser;
 
-	// Match on [ ], [x], and [X], to the end of the line
-	this.matchRegExp = /^\[([ xX])\] .*$/mg;
+    // Match on [ ], [x], and [X], to the end of the line
+    // Match on * [ ], * [x], and * [X] for indented lines
+    this.matchRegExp = /(^\[([ xX])\] .*$|^(\*) \[([ xX])\] .*$)/mg;
 };
 
 /*
@@ -37,9 +38,9 @@ Create list items
 */
 
 exports.parse = function() {
-    var listItems = [];
-    var listStartPos = this.parser.pos;
-    var match = this.match;
+    let listItems = [];
+    let listStartPos = this.parser.pos;
+    let match = this.match;
 
     // Start the list with a "New List Item" placeholder
     listItems.push({
@@ -102,17 +103,29 @@ exports.parse = function() {
         ]
     });
 
-    // Create items in a loop
+    // Create items in a do-while loop
     do {
-        var startPos = this.parser.pos;
+        let startPos = this.parser.pos;
         this.parser.pos = this.matchRegExp.lastIndex;
-        var parseResults = this.parser.wiki.parseText(
+        let parseResults;
+        
+        // Check indent & get label sub-string
+        if (match[3] === "*") {
+            parseResults = this.parser.wiki.parseText(
+                "text/vnd.tiddlywiki",
+                this.parser.source.substring(startPos + 6, this.parser.pos),
+                {parseAsInline: true}
+            );
+        } else {
+            parseResults = this.parser.wiki.parseText(
                 "text/vnd.tiddlywiki",
                 this.parser.source.substring(startPos + 4, this.parser.pos),
-                {parseAsInline: true});
+                {parseAsInline: true}
+            );
+        }
 
         // Use the listitem body as a label for the checkbox to get better accessibility
-        var itembody = {
+        let itembody = {
             type: "element",
             tag: "label",
             attributes: {
@@ -121,7 +134,7 @@ exports.parse = function() {
             children: parseResults.tree
         };
 
-        var checkbox = {
+        let checkbox = {
             type: "element",
             tag: "input",
             attributes: {
@@ -130,12 +143,12 @@ exports.parse = function() {
                 id: {type: "string", value: match.index}
             }
         };
-        if (match[1] === "x" || match[1] === "X") {
+        if (match[2] === "x" || match[2] === "X" || match[4] === "x" || match[4] === "X") {
             checkbox.attributes.checked = {type: "boolean", value: true};
         }
 
         // Make a button to delete the item
-        var removelabel = {
+        let removelabel = {
             type: "element",
             tag: "span",
             attributes: {
@@ -146,7 +159,7 @@ exports.parse = function() {
             ]
         };
 
-        var removebutton = {
+        let removebutton = {
             type: "element",
             tag: "button",
             attributes: {
@@ -158,22 +171,41 @@ exports.parse = function() {
             ]
         };
 
-        // add the item to the list
-        listItems.push({
+        // Make a reusable list item
+        let subitem = {
             type: "element",
             tag: "li",
+            attributes: {
+                class: {type: "string", value: "flex"}
+            },
             children: [
                 checkbox,
-                removebutton,
-                itembody
+                itembody,
+                removebutton
             ]
-        });
+        };
+
+        // Check for indent and add the item to the list
+        if (match[3] === "*") {
+            listItems.push({
+                type: "element",
+                tag: "ul",
+                attributes: {
+                    class: {type: "string", value: "checklist-sublist"},
+                },
+                children: [
+                    subitem
+                ]
+            });
+        } else { 
+            listItems.push(subitem);
+        }
 
         match = this.matchRegExp.exec(this.parser.source);
-    } while (match != null && match.index == 1 + this.parser.pos);
+    } while (match !== null && match.index === 1 + this.parser.pos);
 
+    // Show the Clear-All button
     if (this.shouldShowClearAll()) {
-        // show the clear-all button
         var clearallbutton = {
             type: "element",
             tag: "button",
